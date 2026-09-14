@@ -10,27 +10,32 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 60
     steps:
-      - uses: actions/checkout@v4
-      - name: Prepare source
+      - name: Build and capture log
+        shell: bash
         run: |
-          git clone https://github.com/ggml-org/whisper.cpp.git source
-          git -C source checkout f133970bbb8c034ad9055a70afb97d61c24038f9
-          cp -R overrides/. source/
-      - uses: actions/setup-java@v4
-        with:
-          distribution: temurin
-          java-version: "17"
-          cache: gradle
-          cache-dependency-path: source/examples/whisper.android/**/*.gradle*
-      - uses: android-actions/setup-android@v3
-      - name: Install Android components
-        run: sdkmanager "platforms;android-34" "build-tools;34.0.0" "ndk;25.2.9519653" "cmake;3.22.1"
-      - name: Build APK
-        working-directory: source/examples/whisper.android
-        run: ./gradlew --no-daemon assembleRelease
-      - name: Upload APK
+          set +e
+          {
+            set -x
+            java -version
+            git clone https://github.com/donat19/Prodgect_Alfa.git bootstrap
+            git clone https://github.com/ggml-org/whisper.cpp.git source
+            git -C source checkout f133970bbb8c034ad9055a70afb97d61c24038f9
+            cp -R bootstrap/overrides/. source/
+            yes | sdkmanager --licenses
+            sdkmanager "platforms;android-34" "build-tools;34.0.0" "ndk;25.2.9519653" "cmake;3.22.1"
+            cd source/examples/whisper.android
+            ./gradlew --no-daemon assembleRelease
+          } > build.log 2>&1
+          result=$?
+          cp build.log "$GITHUB_WORKSPACE/build.log" 2>/dev/null || true
+          echo "$result" > "$GITHUB_WORKSPACE/exit-code.txt"
+          exit 0
+      - name: Upload diagnostics and APK
         uses: actions/upload-artifact@v4
         with:
-          name: Offline-MP3-to-TXT-APK
-          path: source/examples/whisper.android/app/build/outputs/apk/release/*.apk
-          if-no-files-found: error
+          name: Offline-MP3-build-result
+          path: |
+            build.log
+            exit-code.txt
+            source/examples/whisper.android/app/build/outputs/apk/release/*.apk
+          if-no-files-found: warn
